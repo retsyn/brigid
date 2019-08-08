@@ -22,13 +22,17 @@ def sort_selection():
             armature = object
 
     if(armature == None):
-        print ("No armature in selection.")
+        print ("No armature in selection.  Aborting.")
+        return False
     return { 'meshes':mesh_list, 'armature':armature }
 
 
 def install_new_geo():
     # Selection will include an armature which will have the old content in it.
     replacements = sort_selection()
+    if (replacements == False):
+        print ("Sort failed.  Aborting!")
+        return False
 
     for new_mesh in replacements['meshes']:
         # Each mesh will have a similar name under the armature (hopefully)
@@ -56,16 +60,23 @@ def copy_skins( source, target ):
     data_mod.data_types_verts = {'VGROUP_WEIGHTS'}
     data_mod.mix_mode = 'ADD'
 
-    unmute_modifers(source)
+    # All settings in place-- generate and apply:
+    target.datalayout_transfer(modifier=data_mod.name)
+    
+
+    unmute_modifers(source, mute_profile)
 
     print ("Created modifer on {} called {}.".format(target, data_mod))
 
 
 def topo_matching( source, target ):
-    # Check if topo matches
+    '''
+    Purpose:
+
     # Caveat-- this is only checking point count, edge count, and vert count, very likely to be the same if topo matches.  
     # But not garunteed to recognize changed edge relationships or re-ordered points.  So in a perfect storm of meshes with exactly the same
     # counts this check will provide false positives. (But never false negatives)
+    '''
     if(len(source.data.polygons) == len(target.data.polygons)):
         print ("Poly count matches!")
         if(len(source.data.vertices) == len(target.data.vertices)):
