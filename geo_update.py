@@ -2,8 +2,31 @@
 # Geo Replacer
 #
 # Quickly replaces any geo with the same name with data-xfer nodes, to get it re-rigged as quick as possible
-
 import bpy
+from bpy.types import Panel
+
+class UpdateGeoSkin(Panel):
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_label = 'Install New Geo'
+    bl_context = 'objectmode'
+    bl_category = 'Geo Replace'
+    
+    # Add a UI element
+    def draw(self, context):
+        layout = self.layout
+        layout.operator('install_new_geo()', text="Install Selected Geo")
+
+
+# Register the addon
+def register():
+    bpy.utils.register_class(UpdateGeoSkin)
+
+
+# Unregister
+def unregister():
+    bpy.utils.unregister_class(UpdateGeoSkin)
+
 
 def sort_selection():
     # Sort selection into a mesh list.
@@ -157,5 +180,12 @@ def unmute_all_armatures(object):
     for mod in object.modifiers:
         if(mod.type == 'ARMATURE'):
             mod.show_viewport = True
+
+
+# Install on run:
+if __name__ == '__main__':
+    register()
+    print ("Module registered.")
+
 
 print ("geo_update module loaded.")
