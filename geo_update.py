@@ -47,7 +47,6 @@ def install_new_geo():
                     bpy.ops.object.select_all(action='DESELECT')
                     bpy.context.scene.objects.active = replacements['armature']
                     new_mesh.select = True
-                    
                     bpy.ops.object.parent_set(type='ARMATURE_NAME')
                     # Then copy skins.
                     print ("Copying from {} to {}...".format(child, new_mesh))
@@ -73,10 +72,19 @@ def copy_skins( source, target ):
     data_mod.mix_mode = 'ADD'
 
     # All settings in place-- generate and apply:
-    bpy.context.scene.objects.active = target
+
+    # Selections must have active object be the source, and selected be the target for transfer:
+    bpy.context.scene.objects.active = source
+    target.select = True
     bpy.ops.object.datalayout_transfer(modifier=data_mod.name)
+
+    # Switch selection back the other way around to apply modifier... because BLENDER.
+    bpy.context.scene.objects.active = target
+    bpy.ops.object.modifier_apply(modifier=data_mod.name)
+    print ("Applied {}".format(data_mod.name) )
     
     unmute_modifiers(source, mute_profile)
+    unmute_all_armatures(target)
 
     print ("Created modifer on {} called {}.".format(target, data_mod))
 
@@ -143,5 +151,11 @@ def unmute_modifiers(object, profile):
             if(mod.name == key):
                 mod.show_viewport = profile[key]
                 break
+
+
+def unmute_all_armatures(object):
+    for mod in object.modifiers:
+        if(mod.type == 'ARMATURE'):
+            mod.show_viewport = True
 
 print ("geo_update module loaded.")
