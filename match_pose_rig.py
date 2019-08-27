@@ -5,10 +5,69 @@ For matching pose rigs to other pose rigs.
 
 import bpy
 
-class object_selection():
-    '''
+
+class MatchPoseOperator(bpy.types.Operator):
+    """
+    Matches the locations of pose bones from active armature to selected armature.
+    USAGE:
+    Select the arranged armature first, and the target armature second before running.
+    """
+
+    bl_idname = "rig.match_pose"
+    bl_label = "Match pos Bones Now"
+
+    def execute(self, context):
+        print ("Executing Match Pose...")
+        match_pose() # Can this be executed if this definition exists outside the operator?
+        return {'FINISHED'}
+
+bpy.utils.register_class(MatchPoseOperator)
+
+
+class MatchPosePanel(bpy.types.Panel):
+    """
+    Creates panel and button for Match-Pose
+    """
+    bl_label = "Match Pose"
+    bl_idname = "TOOLS_PT_hello"
+    bl_space_type = 'VIEW_3D'
+    bl_region_type = 'TOOLS'
+    bl_context = 'posemode'
+    bl_category = 'Match Pose'
+
+    def draw(self, context):
+
+        layout = self.layout
+        active_object = context.object
+
+        # Real Time (?) Selection info
+        scene = context.scene
+        layout.prop_search(scene, "rigObject", bpy.data, "objects", icon='OUTLINER_OB_ARMATURE')
+
+        # The button:
+        row = layout.row()
+        row.scale_y = 1.5
+        row.operator("rig.match_pose")
+
+
+class RigObjectGroup(bpy.types.PropertyGroup):
+    name = bpy.props.StringProperty(name=)
+
+
+def register():
+    bpy.utils.register_class(MatchPoseOperator)
+    rigObject = bpy.props
+    bpy.utils.register_class(MatchPosePanel)
+
+
+
+print ("Panel registered.")
+
+
+class ObjectSelection():
+    """
     Class for storing a selection structure
-    '''
+    """
 
     active_object = None
     selected_objects = []
@@ -35,47 +94,34 @@ class object_selection():
 
 def match_pose():
     # Get and sanitize selection
-    selection = object_selection()
+    selection = ObjectSelection()
     selection.filter_type('ARMATURE')
-    print ("Selection is {}".format(selection.selected_objects))
+
+    if(selection.active_object == selection.selected_objects[0]):
+        print ("Selection is not unique!  Select two armatures containing repose rigs.")
+
+    if((selection.active_object.type != 'ARMATURE') or (selection.selected_objects[0] != 'ARMATURE')):
+        print ("Active object is not an armature!")
+
 
     pose_bone_list = [bone for bone in selection.selected_objects[0].pose.bones if bone.name.partition('.')[0] == 'pos']
-    
-
-    #[idx for idx in test_list if idx[0].lower() == check.lower()] 
     # For ease of use, I'd prefer user just selected an entire armature and we sorted which were pose bones
-
     # Populate bone pose_bone_list with the filtered children of the armature...
 
-    print ("Beginning the iteration.")
+    # HACK
+    selection.active_object = bpy.data.objects['%s' % 'rig.chr463_teca_male_3.000']
+
 
     for p_bone in pose_bone_list:
-        print ("Checking {}".format(p_bone))
-        # creates the modifier and sets the armature and bone
+        # creates the modifier and sets the armature and bone.
         mod_cns = p_bone.constraints.new('COPY_TRANSFORMS')
         mod_cns.target = selection.active_object
         mod_cns.subtarget = p_bone.name
+        print ("Snapping {}:{} to {}:{}".format(selection.active_object.name, p_bone.name, selection.selected_objects[0].name, p_bone.name))
         # applies the pose.
         bpy.ops.pose.visual_transform_apply()
         # Context pedantic:
         p_bone.constraints.remove(mod_cns)
+    
+    print ("Finished.")
 
-
-def find_armatures():
-    '''
-    Sort and sanitize selection;
-    In this case make sure we have a source and a target armature.
-
-    USAGE:
-    find_armatures()
-    No args; will get it's input from bpy.context.selected_objects.
-    '''
-
-    # TODO change all this to a more compact list comprehension
-    target = bpy.context.scene.objects.active
-    if(target.type != 'ARMATURE'):
-        print ("Active selection must be the target armature")
-
-    for object in bpy.context.selected_objects:
-        if(object.type == 'ARMATURE'):
-            print ("\tFound a {};".format(object.type))
