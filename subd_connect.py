@@ -12,7 +12,6 @@ import sys
 class SubdConnectOperator(bpy.types.Operator):
     """
     """
-
     bl_idname = "rig.subd_connect"
     bl_label = "Create SubD switchs on selection"
 
@@ -54,21 +53,22 @@ class SubdConnectOperator(bpy.types.Operator):
             mod = self.add_subd_modifier(object)
             mod_list.append(mod)
 
-            self.build_driver(god_node_bone, mod, custom_prop_name)
+            print ("Building a driver for {}.".format(mod))
+            self.build_driver(bone_target=god_node_bone, source_mod=mod, prop=custom_prop_name, arm=armature)
         
-
         return True
 
     
-    def build_driver(self, bone_target, mod, prop):
+    def build_driver(self, bone_target, source_mod, prop, arm):
         # Create driver in the same loop.
-        #self.report({'INFO'}, "Adding to driver to {}->{}.".format(bone_target.name, mod.name))
+        # self.report({'INFO'}, "Adding to driver to {}->{}.".format(bone_target.name, mod.name))
 
-        new_driver = mod.driver_add("levels").driver
+        new_driver = source_mod.driver_add("levels").driver
+        new_driver.expression = "var"
         driver_var = new_driver.variables.new()
         driver_var.name = prop
-        driver_var.targets[0].id = bone_target
-        driver_var.targets[0].datapath = bone_target[prop]
+        driver_var.targets[0].id = arm
+        driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\"" + prop + "\"]")
         #pose.bones["ctl.god.C.001"]["subd_r_body"]
 
 
