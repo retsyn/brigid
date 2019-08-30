@@ -5,6 +5,18 @@
 
 # Will take a selected piece of geo and make a subd modifier.  And if it's already got one, make a switch.
 
+bl_info = {
+    "name": "Subd Switch Connect",
+    "author": "Matt Riche",
+    "version": (1, 0),
+    "blender": (2, 78, 0),
+    "location": "View3D > Rigging > Subd Connect",
+    "description": "Installed standardized SubD Controls",
+    "warning": "",
+    "wiki_url": "",
+    "category": "Rigging",
+    }
+
 import bpy
 import sys
 
@@ -44,7 +56,7 @@ class SubdConnectOperator(bpy.types.Operator):
         if "_RNA_UI" not in god_node_bone.keys():
             god_node_bone["_RNA_UI"] = {}
 
-        god_node_bone["_RNA_UI"].update({custom_prop_name: {"min":0, "max":subd_max, "soft_min":0, "soft_max":1}})
+        god_node_bone["_RNA_UI"].update({custom_prop_name: {"min":0, "max":subd_max, "soft_min":0, "soft_max":subd_max}})
 
         # Make/Find modifiers and store them
         mod_list = []
@@ -63,13 +75,21 @@ class SubdConnectOperator(bpy.types.Operator):
         # Create driver in the same loop.
         # self.report({'INFO'}, "Adding to driver to {}->{}.".format(bone_target.name, mod.name))
 
-        new_driver = source_mod.driver_add("levels").driver
-        new_driver.expression = "var"
-        driver_var = new_driver.variables.new()
-        driver_var.name = prop
-        driver_var.targets[0].id = arm
-        driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\"" + prop + "\"]")
-        #pose.bones["ctl.god.C.001"]["subd_r_body"]
+        if(bpy.context.scene.SwitchViewportLevels):
+            new_driver = source_mod.driver_add("levels").driver
+            new_driver.expression = "var"
+            driver_var = new_driver.variables.new()
+            driver_var.name = "var"
+            driver_var.targets[0].id = arm
+            driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\"" + prop + "\"]")
+
+        if(bpy.context.scene.SwitchRenderLevels):
+            new_driver = source_mod.driver_add("render_levels").driver
+            new_driver.expression = "var"
+            driver_var = new_driver.variables.new()
+            driver_var.name = "var"
+            driver_var.targets[0].id = arm
+            driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\"" + prop + "\"]")
 
 
     def create_property_name(self):
@@ -193,7 +213,15 @@ def register():
     bpy.utils.register_class(SubdConnectPanel)
     print ("Panel/Operator registered.\nScript by Matt.")
 
-register()
+
+def unregister():
+    bpy.utils.unregister_class(SubdConnectOperator)
+    bpy.utils.unregister_class(SubdTargetsGroup)
+    bpy.utils.unregister_class(SubdConnectPanel)
+    
+
+if __name__ == "__main__":
+    register()
 
 
 
