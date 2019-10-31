@@ -1,15 +1,14 @@
 # SubD switch maker
 # subd_connect.py
-# Matt R
-# 2019
+# updated: 2019-10-25
 
-# Will take a selected piece of geo and make a subd modifier.  And if it's already got one, make a switch.
+#  selected piece of geo and make a subd modifier. 
 
 bl_info = {
     "name": "Subd Switch Connect",
-    "author": "Matt Riche",
+    "author": "Jose Marcano, Matt Riche",
     "version": (1, 0),
-    "blender": (2, 78, 0),
+    "blender": (2, 80, 0),
     "location": "View3D > Rigging > Subd Connect",
     "description": "Installed standardized SubD Controls",
     "warning": "",
@@ -20,19 +19,17 @@ bl_info = {
 import bpy
 import sys
 
-
 class SubdConnectOperator(bpy.types.Operator):
     """
     """
     bl_idname = "rig.subd_connect"
     bl_label = "Create SubD switchs on selection"
+    bl_options = {'REGISTER', 'UNDO'}
 
     def subd_switch_maker(self):
 
-        # Store scene properties locally:
-        subd_max = bpy.context.scene.SwitchMakerLevels
-
         print ("Creating a subd switch...")
+        
         # Find the god node
         armature = bpy.context.scene.SelectedSwitchArmature
         god_node = self.find_god_node()
@@ -42,21 +39,34 @@ class SubdConnectOperator(bpy.types.Operator):
         god_node_bone = armature.pose.bones[god_node.name]
         print ("god_node_bone is {}".format(god_node_bone))
         
-        # Get a list of selections
-        targets = bpy.context.selected_objects
+        # Mesh needs to be selected in order for this tool to work
+        # selects all objects in scene that are mesh
+        if(bpy.context.scene.SelectSceneObjects):
+            bpy.ops.object.select_by_type(extend=False, type="MESH")
+            # Get a list of selections
+            targets = bpy.context.selected_objects
+
+        else:
+            # Get a list of selections
+            targets = bpy.context.selected_objects
+
         if(targets == []):
             status = self.report({'ERROR_INVALID_INPUT'}, "Must select some geo to apply switches to.\n")
             return False
 
-        custom_prop_name = self.create_property_name()
-        self.report({'INFO'}, "Making a property called {}".format(custom_prop_name))
-
-        # Get the new property on the god node set up:
-        god_node_bone[custom_prop_name] = 0
+        # Get the properties on the god node set up:
+        # we must modify this section of the code to check for properties
+        # check if prop/set properties or character properties
         if "_RNA_UI" not in god_node_bone.keys():
             god_node_bone["_RNA_UI"] = {}
 
-        god_node_bone["_RNA_UI"].update({custom_prop_name: {"min":0, "max":subd_max, "soft_min":0, "soft_max":subd_max}})
+        # Add subd props
+        god_node_bone["subd_v"] = 0
+        god_node_bone["subd_r"] = 2
+
+        # Update properties to have the appropiate value ranges
+        god_node_bone["_RNA_UI"].update({"subd_v":{"min":0, "max":2, "default":0, "description":"Visual Subd"}})
+        god_node_bone["_RNA_UI"].update({"subd_r":{"min":0, "max":2, "default":2, "description":"Render Subd"}})
 
         # Make/Find modifiers and store them
         mod_list = []
@@ -66,63 +76,35 @@ class SubdConnectOperator(bpy.types.Operator):
             mod_list.append(mod)
 
             print ("Building a driver for {}.".format(mod))
-            self.build_driver(bone_target=god_node_bone, source_mod=mod, prop=custom_prop_name, arm=armature)
+            self.build_driver(bone_target=god_node_bone, source_mod=mod, arm=armature)
         
         return True
 
-    
-    def build_driver(self, bone_target, source_mod, prop, arm):
+    #creates drives for selected geo and set data paths 
+    def build_driver(self, bone_target, source_mod, arm):
         # Create driver in the same loop.
-        # self.report({'INFO'}, "Adding to driver to {}->{}.".format(bone_target.name, mod.name))
 
-        if(bpy.context.scene.SwitchViewportLevels):
             new_driver = source_mod.driver_add("levels").driver
             new_driver.expression = "var"
             driver_var = new_driver.variables.new()
             driver_var.name = "var"
             driver_var.targets[0].id = arm
-            driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\"" + prop + "\"]")
+            driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\""+"subd_v"+"\"]")
 
-        if(bpy.context.scene.SwitchRenderLevels):
             new_driver = source_mod.driver_add("render_levels").driver
             new_driver.expression = "var"
             driver_var = new_driver.variables.new()
             driver_var.name = "var"
             driver_var.targets[0].id = arm
-            driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\"" + prop + "\"]")
+            driver_var.targets[0].data_path = ("pose.bones[\"" + bone_target.name + "\"][\""+"subd_r"+"\"]")
 
-
-    def create_property_name(self):
-
-        name_from_select = bpy.context.scene.SwitchUseSelection
-        part_one = ""
-
-        if(name_from_select):
-            part_one = bpy.context.selected_objects[0].name.split('.')[1]
-        else:
-            if(bpy.context.scene.SwitchDriverName != ''):
-                part_one = bpy.context.scene.SwitchDriverName
-            else:
-                self.report({'ERROR'}, "Can't have no name!  Select \"Decide name from selection\" if you're that lazy.")
-
-        full_string = ("subd_" + part_one)
-
-        if(bpy.context.scene.SwitchViewportLevels):
-            full_string = (full_string + "_v")
-        if(bpy.context.scene.SwitchRenderLevels):
-            full_string = (full_string + "_r")
-
-        print ("Name of new property will be {}.".format(full_string))
-
-        return full_string
-
-
+    #Finds god node by searching through the armature bone list for [ctl.god.]
     def find_god_node(self):
         # Get the god node from the armature.
         god_node = None
-        armature = bpy.context.scene.SelectedSwitchArmature
+        armature = bpy.context.scene.SelectedSwitchArmature.data
 
-        for bone in armature.data.bones:
+        for bone in armature.bones:
             if((bone.name.split('.')[1] == "god") and (bone.name.split('.')[0] == "ctl")):
                 # Found the god node (As per naming conventions)
                 god_node = bone
@@ -133,9 +115,12 @@ class SubdConnectOperator(bpy.types.Operator):
         return god_node
 
 
+
     def add_subd_modifier(self, mesh_object):
         # Take a passed in mesh object and apply a driver.  If it already has a driver, return that too.
-        bpy.context.scene.objects.active = mesh_object
+
+        bpy.context.view_layer.objects.active = mesh_object
+        
         subd_found = False
 
         # Check for existing sub-surf modifiers-- return existing one if so.
@@ -163,8 +148,7 @@ class SubdConnectOperator(bpy.types.Operator):
             return {'CANCELLED'}
 
 
-
-class SubdConnectPanel(bpy.types.Panel):
+class TOOLS_PT_subdconnect(bpy.types.Panel):
     """
     Creates panel and button for SubDConnenct
     """
@@ -172,25 +156,22 @@ class SubdConnectPanel(bpy.types.Panel):
     bl_label = "Connect Subd Switches"
     bl_idname = "TOOLS_PT_subdconnect"
     bl_space_type = 'VIEW_3D'
-    bl_region_type = 'TOOLS'
-    bl_context = 'objectmode'
+    bl_region_type = 'UI'
     bl_category = 'Rigging'
 
     def draw(self, context):
 
         layout = self.layout
         scene = context.scene
+
         row = layout.row()
-        row.prop_search(scene, "SelectedSwitchArmature", bpy.data, "armatures", icon='OUTLINER_OB_ARMATURE')
+
+        row.prop_search(scene, "SelectedSwitchArmature",
+                                  bpy.data, "objects", 
+                                 icon='OUTLINER_OB_ARMATURE')
+
         row = layout.row()
-        row.prop(scene, "SwitchMakerLevels")
-        row = layout.row()
-        row.prop(scene, "SwitchRenderLevels")
-        row.prop(scene, "SwitchViewportLevels")
-        row = layout.row()
-        row.prop(scene, "SwitchDriverName")
-        row = layout.row()
-        row.prop(scene, "SwitchUseSelection")
+        row.prop(scene, "SelectSceneObjects")
 
         # The button:
         row = layout.row()
@@ -199,29 +180,28 @@ class SubdConnectPanel(bpy.types.Panel):
 
 
 class SubdTargetsGroup(bpy.types.PropertyGroup):
-    bpy.types.Scene.SelectedSwitchArmature = bpy.props.PointerProperty(type=bpy.types.Object, name = "Armature", description = "Rig Armature")
-    bpy.types.Scene.SwitchMakerLevels = bpy.props.IntProperty(name="SubD Limit")
-    bpy.types.Scene.SwitchRenderLevels = bpy.props.BoolProperty(name="For Render")
-    bpy.types.Scene.SwitchViewportLevels = bpy.props.BoolProperty(name="For Viewport")
-    bpy.types.Scene.SwitchDriverName = bpy.props.StringProperty(name="Switch Name")
-    bpy.types.Scene.SwitchUseSelection = bpy.props.BoolProperty(name="Decide name from Selection")
-    
+    bpy.types.Scene.SelectedSwitchArmature = bpy.props.PointerProperty(
+        type=bpy.types.Object, 
+        name = "Armature", 
+        description = "Rig Armature"
+        )
+
+    bpy.types.Scene.SelectSceneObjects = bpy.props.BoolProperty(
+        name="Select all",
+        description = "Selects all scene objects"
+        ) 
+
+classes = [SubdConnectOperator ,SubdTargetsGroup ,TOOLS_PT_subdconnect] 
 
 def register():
-    bpy.utils.register_class(SubdConnectOperator)
-    bpy.utils.register_class(SubdTargetsGroup)
-    bpy.utils.register_class(SubdConnectPanel)
-    print ("Panel/Operator registered.\nScript by Matt.")
-
+    for c in classes:
+        bpy.utils.register_class(c)
 
 def unregister():
-    bpy.utils.unregister_class(SubdConnectOperator)
-    bpy.utils.unregister_class(SubdTargetsGroup)
-    bpy.utils.unregister_class(SubdConnectPanel)
+    for c in classes:
+        bpy.utils.unregister_class(c)
     
 
-if __name__ == "__main__":
-    register()
 
 
 
