@@ -29,11 +29,22 @@ class BindArmatureOperator(bpy.types.Operator):
         print ("Executing armature bind.")
         repose_armature = bpy.context.scene.TargetArmature
         addon_armature = bpy.context.scene.SourceArmature
-        # Call the generic "join_rigs"
-        print ("DEBUG: repose is {}, and addon is {}".format(repose_armature.name, addon_armature.name))
-        self.join_rigs(repose_name = repose_armature.name, addon_name = addon_armature.name)
-        # Call the specific parent function.
 
+        repose_armature.hide_viewport=False
+        addon_armature.hide_viewport=False
+
+        bpy.ops.object.mode_set(mode = 'POSE')
+        # Call the generic "join_rigs"
+        success = self.join_rigs(repose_name = repose_armature.name, addon_name = addon_armature.name)
+        if(success == False):
+            self.report({'WARNING'}, "An object was missing, cancelling the process.")
+            return False
+
+        # Call the specific parent function.
+        self.report({'WARNING'}, "The thing is called {}".format(repose_armature.name))
+        self.parent_teeth(repose_armature.name)
+
+        self.report({'INFO'}, "The binding process completed successfully.")
         return True
 
 
@@ -46,33 +57,52 @@ class BindArmatureOperator(bpy.types.Operator):
         # This def's code based on Mike C.'s.
         self.report({'INFO'}, 'Binding rigs together.')
 
-        bpy.ops.object.mode_set(mode = 'OBJECT')
+        bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action = 'DESELECT')
 
-        bpy.context.scene.objects[addon_name].select_set(True)
-        bpy.context.scene.objects[repose_name].select_set(True)
+        self.report({'INFO'}, "Binding {} with {}".format(addon_name, repose_name))
+
+        try:
+            bpy.context.scene.objects[addon_name].select_set(True)
+        except:
+            self.report({'ERROR'}, "{} doesn't seem to be in the scene.\nIs it already binded?".format(addon_name))
+            return False
+
+        try:
+            bpy.context.scene.objects[repose_name].select_set(True)
+        except:
+            self.report({'ERROR'}, "{} is not found.  Did you select the repose rig?")
+            return False
         bpy.context.view_layer.objects.active=bpy.data.objects[repose_name]
         bpy.ops.object.join()
         self.report({'INFO'}, 'Success!')
+
+        return True
 
 
     # TODO: We should consider the parenting-scheme to be some data grew this func can
     # chew on, and be a little be more generic; like a dict that indicates what gets
     # Parent to what, that we can parse with a generic function.  To lazy for right now.
-    def parent_teeth(self):
+    def parent_teeth(self, repose_name):
         """
         The parenting scheme specifically for teeth.
         """
-        
         bpy.ops.object.mode_set(mode = 'EDIT')
 
-        parent_bone=bpy.data.armatures[rig_name].edit_bones['ctl.head_fk_sub.C.001']
-        bpy.data.armatures[rig_name].edit_bones['mst.face_head.C.001'].parent=parent_bone
+        parent_bone=bpy.data.armatures[repose_name].edit_bones['def.jaw_reverse.C.001']
+        bpy.data.armatures[repose_name].edit_bones['mst.teeth_top.C.001'].parent=parent_bone
+
+        parent_bone=bpy.data.armatures[repose_name].edit_bones['def.jaw.C.001']
+        bpy.data.armatures[repose_name].edit_bones['mst.teeth_bottom.C.001'].parent=parent_bone
+
+        self.report({'INFO'}, 'Teeth parented under repose head.')
+
+        bpy.ops.object.mode_set(mode = 'OBJECT')
+        return True
 
 
     def parent_face(self):
-        self.report({'WARNING'}, 'Not ready for this yet!')
-        
+        self.report({'WARNING'}, 'Not ready for this yet!')        
         return False
 
     def execute(self, context):
@@ -127,7 +157,7 @@ class BindArmaPropGroup(bpy.types.PropertyGroup):
 
     mode_options = [
         ('teeth', 'Teeth', '', 'Basic Teeth', 1),
-        ('face', 'Face', '', 'Face Rig', 2)
+        ('face', 'Face (COMING SOON)', '', 'Face Rig', 2)
     ]
 
     bpy.types.Scene.ArmatureType = bpy.props.EnumProperty(
