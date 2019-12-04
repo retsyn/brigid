@@ -27,16 +27,59 @@ class GroomPropOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def execute(self, context):
+        resets_count = 0
+        keys_count = 0
         self.report({'INFO'}, "Running Groom Properties operation...")
+        # The following condition is how it is due to the idea that in the future the enum my groom entirely different properties.
         if(bpy.context.scene.GroomAction == 'subd_v' or bpy.context.scene.GroomAction == 'subd_r' or bpy.context.scene.GroomAction == 'subd_all'):
+            resets_count = self.groom_subds()
+            if(resets_count > 0):
+                success = True
 
-            success = self.groom_subds()
+        if(bpy.context.scene.GroomClearKeys):
+            keys_count = self.reset_keys()
+            if(keys_count > 0):
+                success = True
+
+        self.report({'INFO'}, "Reset {} values, and deleted {} keys.".format(resets_count, keys_count))
         if(success):
             return {'FINISHED'}
         else:
             return {'CANCELLED'}
 
+
+    def reset_keys(self):
+        self.report({'INFO'}, "Cleaning keys...")
+        removal_count = 0
+
+        armatures=bpy.data.armatures
+        for armature in armatures:
+            rig_name=armature.name
+            self.report({'INFO'}, "Checking keys on {}.".format(rig_name))
+            try:
+                fcurves = bpy.data.objects[rig_name].animation_data.action.fcurves
+            except:
+                self.report({'WARNING'}, "No fcurves on that armature, moving on.")
+                continue
+
+            if (bpy.context.scene.GroomAction == 'subd_v'):
+                strings = 'subd_v'
+            if (bpy.context.scene.GroomAction == 'subd_r'):
+                strings = 'subd_r'
+            if (bpy.context.scene.GroomAction == 'subd_all'):
+                strings = 'subd'
+
+            for curve in fcurves:
+                if(strings in curve.data_path):
+                    self.report({'INFO'}, "Deleting keys on {}.".format(curve.data_path))
+                    fcurves.remove(curve)
+                    removal_count += 1
+            
+            return removal_count
+
+    
     def groom_subds(self):
+        resets_count = 0
         self.report({'INFO'}, "Executing groom subds...")
 
         # Search string will determine which type of property we edit...
@@ -47,7 +90,12 @@ class GroomPropOperator(bpy.types.Operator):
         if(bpy.context.scene.GroomAction == 'subd_all'):
             search_string = "subd"
 
-        bpy.ops.object.mode_set(mode='POSE')
+        try:
+            bpy.ops.object.mode_set(mode='POSE')
+        except:
+            self.report({'ERROR'}, "Couldn't change contexts.  Check that your armatures exist and aren't hidden or off.")
+            return False
+
         controls = [val for key, val in bpy.context.object.pose.bones.items() if 'ctl.' in key]
   
         for ctl in controls:
@@ -66,12 +114,15 @@ class GroomPropOperator(bpy.types.Operator):
                     new_default = cont['_RNA_UI'][prop]['default']
                     cont[prop] = new_default
                     self.report({'INFO'}, "Changing {} on {} back to default of {}".format(prop, cont.name, new_default))
+                    resets_count += 1
                 else:
                     cont[prop] = 0
                     self.report({'INFO'}, "Changing {} on {} back to 0 (No default value stored)".format(prop, cont.name))
+                    resets_count += 1
 
         success = True
-        return success
+        return resets_count
+
 
 
 class TOOLS_PT_groom_properties(bpy.types.Panel):
