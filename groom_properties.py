@@ -41,7 +41,7 @@ class GroomPropOperator(bpy.types.Operator):
             if(keys_count > 0):
                 success = True
 
-        self.report({'INFO'}, "Reset {} values, and deleted {} keys.".format(resets_count, keys_count))
+        self.report({'INFO'}, "Reset {} values, and cleared {} keys.".format(resets_count, keys_count))
         if(success):
             return {'FINISHED'}
         else:
@@ -58,6 +58,7 @@ class GroomPropOperator(bpy.types.Operator):
             self.report({'INFO'}, "Checking keys on {}.".format(rig_name))
             try:
                 fcurves = bpy.data.objects[rig_name].animation_data.action.fcurves
+                self.report({'INFO'}, "found some fcurves: {}".format(fcurves))
             except:
                 self.report({'WARNING'}, "No fcurves on that armature, moving on.")
                 continue
@@ -75,7 +76,7 @@ class GroomPropOperator(bpy.types.Operator):
                     fcurves.remove(curve)
                     removal_count += 1
             
-            return removal_count
+        return removal_count
 
     
     def groom_subds(self):
@@ -116,8 +117,8 @@ class GroomPropOperator(bpy.types.Operator):
                     self.report({'INFO'}, "Changing {} on {} back to default of {}".format(prop, cont.name, new_default))
                     resets_count += 1
                 else:
-                    cont[prop] = 0
-                    self.report({'INFO'}, "Changing {} on {} back to 0 (No default value stored)".format(prop, cont.name))
+                    cont[prop] = bpy.context.scene.GroomLostDefault
+                    self.report({'WARNING'}, "Changing {} on {} to forced value of {} (No default value stored)".format(prop, cont.name, cont[prop]))
                     resets_count += 1
 
         success = True
@@ -147,6 +148,10 @@ class TOOLS_PT_groom_properties(bpy.types.Panel):
         row.prop(scene, "GroomClearKeys")
 
         row = layout.row()
+        row.prop(scene, "GroomLostDefault")
+
+
+        row = layout.row()
         row.scale_y = 1.5
         row.operator("rig.groom_props")
 
@@ -165,7 +170,10 @@ class GroomPropGroup(bpy.types.PropertyGroup):
         items=mode_options,
         description="Available bind actions"
     )
+
     bpy.types.Scene.GroomClearKeys = bpy.props.BoolProperty(name="Clear Keys")
+
+    bpy.types.Scene.GroomLostDefault = bpy.props.IntProperty(name="Force missing defaults to", min=0, max=10)
 
 
 classes = [GroomPropOperator, GroomPropGroup, TOOLS_PT_groom_properties] 
