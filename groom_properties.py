@@ -52,12 +52,18 @@ class GroomPropOperator(bpy.types.Operator):
         self.report({'INFO'}, "Cleaning keys...")
         removal_count = 0
 
-        armatures=bpy.data.armatures
+        armatures = []
+        for object in bpy.context.scene.objects:
+            if(object.type == 'ARMATURE'):
+                armatures.append(object)
+
+        self.report({'INFO'}, "full armature list is {}".format(armatures))
         for armature in armatures:
-            rig_name=armature.name
-            self.report({'INFO'}, "Checking keys on {}.".format(rig_name))
+            #rig_name=armature.name
+            self.report({'INFO'}, "Checking keys on {}.".format(armature.name))
+
             try:
-                fcurves = bpy.data.objects[rig_name].animation_data.action.fcurves
+                fcurves = armature.animation_data.action.fcurves
                 self.report({'INFO'}, "found some fcurves: {}".format(fcurves))
             except:
                 self.report({'WARNING'}, "No fcurves on that armature, moving on.")
