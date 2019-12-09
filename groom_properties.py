@@ -5,7 +5,7 @@
 bl_info = {
     "name": "Groom Properties",
     "author": "Matt Riche",
-    "version": (1, 0),
+    "version": (1, 2),
     "blender": (2, 80, 0),
     "location": "View3D > Rigging > Groom Props",
     "description": "Tool to groom certain default properties.",
@@ -29,6 +29,8 @@ class GroomPropOperator(bpy.types.Operator):
     def execute(self, context):
         resets_count = 0
         keys_count = 0
+        write_count = 0
+
         self.report({'INFO'}, "Running Groom Properties operation...")
         # The following condition is how it is due to the idea that in the future the enum my groom entirely different properties.
         if(bpy.context.scene.GroomAction == 'subd_v' or bpy.context.scene.GroomAction == 'subd_r' or bpy.context.scene.GroomAction == 'subd_all'):
@@ -41,7 +43,12 @@ class GroomPropOperator(bpy.types.Operator):
             if(keys_count > 0):
                 success = True
 
-        self.report({'INFO'}, "Reset {} values, and cleared {} keys.".format(resets_count, keys_count))
+        if(bpy.context.scene.GroomWriteKeys):
+            write_count = self.write_default_keys()
+            if(write_count > 0):
+                success = True
+
+        self.report({'INFO'}, "Reset {} values, cleared {} unwanted keys, and set {} default keys at frame {}.".format(resets_count, keys_count, write_count, bpy.context.scene.GroomStartFrame))
         if(success):
             return {'FINISHED'}
         else:
@@ -84,6 +91,46 @@ class GroomPropOperator(bpy.types.Operator):
             
         return removal_count
 
+
+    def write_default_keys(self):
+        self.report({'INFO'}, "Writing keys at default values.")
+        key_count = 0
+        
+        armatures = []
+        for object in bpy.context.scene.objects:
+            if(object.type == 'ARMATURE'):
+                armatures.append(object)
+
+        if(bpy.context.scene.GroomAction == 'subd_v'):
+            search_string = "subd_v"
+        if(bpy.context.scene.GroomAction == 'subd_r'):
+            search_string = "subd_r"
+        if(bpy.context.scene.GroomAction == 'subd_all'):
+            search_string = "subd"
+
+        for armature in armatures:
+            self.report({'INFO'}, "Checking {} for properties to key...".format(armature.name))
+            controls = [val for key, val in armature.pose.bones.items() if 'ctl.' in key]
+
+            for ctl in controls:
+                if('_RNA_UI' not in ctl.keys()):
+                    continue
+
+                subd_props = [key for key, val in ctl['_RNA_UI'].items() if ((search_string) in key or (search_string) == key)]
+                if(subd_props == []):
+                    continue
+
+                for prop in subd_props:
+                    self.report({'INFO'}, "Writing key frame on {}; {}[\'{}\'] at frame {}".format(armature.name, ctl.name, prop, bpy.context.scene.GroomStartFrame))
+                    # object.keyframe_insert(data_path='["prop"]')
+                    # arm.keyframe_insert(data_path='bones["Bone"].my_prop.nested',frame=1,group="Nested Group")
+                    #prop_path = ('pose.bones[\"' + ctl.name + '\"][\"' + prop + '\"]')
+                    ctl.keyframe_insert(data_path=('[\"' + prop + '\"]'), frame=bpy.context.scene.GroomStartFrame)
+                    key_count += 1
+        
+        return key_count
+
+        
     
     def groom_subds(self):
         resets_count = 0
@@ -152,10 +199,16 @@ class TOOLS_PT_groom_properties(bpy.types.Panel):
 
         row = layout.row()
         row.prop(scene, "GroomClearKeys")
+        row = layout.row()
+        row.prop(scene, "GroomWriteKeys")
 
+        row = layout.row()
+        row.prop(scene, "GroomStartFrame")
         row = layout.row()
         row.prop(scene, "GroomLostDefault")
 
+        row = layout.row()
+        row.scale_y = 2.5
 
         row = layout.row()
         row.scale_y = 1.5
@@ -168,7 +221,6 @@ class GroomPropGroup(bpy.types.PropertyGroup):
         ('subd_v', 'SubD_v\'s only', '', 'Sets all subd_v values to their default', 1),
         ('subd_r', 'SubD_r\'s only', '', 'Sets all subd_r values to their default', 2),
         ('subd_all', 'All SubD\'s', '', 'Sets all subd values to their default', 3),
-
     ]
 
     bpy.types.Scene.GroomAction = bpy.props.EnumProperty(
@@ -178,7 +230,8 @@ class GroomPropGroup(bpy.types.PropertyGroup):
     )
 
     bpy.types.Scene.GroomClearKeys = bpy.props.BoolProperty(name="Clear Keys")
-
+    bpy.types.Scene.GroomWriteKeys = bpy.props.BoolProperty(name="Write Default Key")
+    bpy.types.Scene.GroomStartFrame = bpy.props.IntProperty(name="Scene Starting Frame", min=-99999, max=99999, default=101)
     bpy.types.Scene.GroomLostDefault = bpy.props.IntProperty(name="Force missing defaults to", min=0, max=10)
 
 
