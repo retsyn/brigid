@@ -5,7 +5,7 @@
 bl_info = {
     "name": "Groom Properties",
     "author": "Matt Riche",
-    "version": (1, 2),
+    "version": (1, 3),
     "blender": (2, 80, 0),
     "location": "View3D > Rigging > Groom Props",
     "description": "Tool to groom certain default properties.",
@@ -66,8 +66,12 @@ class GroomPropOperator(bpy.types.Operator):
 
         self.report({'INFO'}, "full armature list is {}".format(armatures))
         for armature in armatures:
+
+            if(armature.hide_viewport == True):
+                self.report({'WARNING'}, "{} is disabled in viewport.  Bypassing.".format(armature.name))
+                continue
             #rig_name=armature.name
-            self.report({'INFO'}, "Checking keys on {}.".format(armature.name))
+            self.report({'INFO'}, "\nChecking keys on {}.".format(armature.name))
 
             try:
                 fcurves = armature.animation_data.action.fcurves
@@ -89,6 +93,9 @@ class GroomPropOperator(bpy.types.Operator):
                     fcurves.remove(curve)
                     removal_count += 1
             
+            self.report({'INFO'}, "Finished deleting old keys on {}.\n".format(armature.name))
+
+            
         return removal_count
 
 
@@ -109,7 +116,11 @@ class GroomPropOperator(bpy.types.Operator):
             search_string = "subd"
 
         for armature in armatures:
-            self.report({'INFO'}, "Checking {} for properties to key...".format(armature.name))
+            if(armature.hide_viewport == True):
+                self.report({'WARNING'}, "{} is disabled in viewport.  Bypassing.".format(armature.name))
+                continue
+
+            self.report({'INFO'}, "\nChecking {} for properties to key...".format(armature.name))
             controls = [val for key, val in armature.pose.bones.items() if 'ctl.' in key]
 
             for ctl in controls:
@@ -127,11 +138,13 @@ class GroomPropOperator(bpy.types.Operator):
                     #prop_path = ('pose.bones[\"' + ctl.name + '\"][\"' + prop + '\"]')
                     ctl.keyframe_insert(data_path=('[\"' + prop + '\"]'), frame=bpy.context.scene.GroomStartFrame)
                     key_count += 1
+
+            self.report({'INFO'}, "Finished re-keying on {}.\n".format(armature.name))
+
         
         return key_count
 
         
-    
     def groom_subds(self):
         resets_count = 0
         self.report({'INFO'}, "Executing groom subds...")
@@ -144,35 +157,42 @@ class GroomPropOperator(bpy.types.Operator):
         if(bpy.context.scene.GroomAction == 'subd_all'):
             search_string = "subd"
 
-        try:
-            bpy.ops.object.mode_set(mode='POSE')
-        except:
-            self.report({'ERROR'}, "Couldn't change contexts.  Check that your armatures exist and aren't hidden or off.")
-            return False
+        armatures = []
+        for object in bpy.context.scene.objects:
+            if(object.type == 'ARMATURE'):
+                armatures.append(object)
 
-        controls = [val for key, val in bpy.context.object.pose.bones.items() if 'ctl.' in key]
+        for armature in armatures:
+            if(armature.hide_viewport == True):
+                self.report({'WARNING'}, "{} is disabled in viewport.  Bypassing.".format(armature.name))
+                continue
+
+            self.report({'INFO'}, "\nChecking {} for non defaults...".format(armature.name))
+            controls = [val for key, val in armature.pose.bones.items() if 'ctl.' in key]
   
-        for ctl in controls:
+            for cont in controls:
 
-            cont = bpy.context.object.pose.bones[ctl.name]
+                #cont = bpy.context.object.pose.bones[ctl.name]
 
-            if('_RNA_UI' not in cont.keys()):
-                continue
+                if('_RNA_UI' not in cont.keys()):
+                    continue
 
-            subd_props = [key for key, val in cont['_RNA_UI'].items() if ((search_string) in key or (search_string) == key)]
-            if(subd_props == []):
-                continue
+                subd_props = [key for key, val in cont['_RNA_UI'].items() if ((search_string) in key or (search_string) == key)]
+                if(subd_props == []):
+                    continue
             
-            for prop in subd_props:
-                if('default' in cont['_RNA_UI'][prop].keys()):
-                    new_default = cont['_RNA_UI'][prop]['default']
-                    cont[prop] = new_default
-                    self.report({'INFO'}, "Changing {} on {} back to default of {}".format(prop, cont.name, new_default))
-                    resets_count += 1
-                else:
-                    cont[prop] = bpy.context.scene.GroomLostDefault
-                    self.report({'WARNING'}, "Changing {} on {} to forced value of {} (No default value stored)".format(prop, cont.name, cont[prop]))
-                    resets_count += 1
+                for prop in subd_props:
+                    if('default' in cont['_RNA_UI'][prop].keys()):
+                        new_default = cont['_RNA_UI'][prop]['default']
+                        cont[prop] = new_default
+                        self.report({'INFO'}, "Changing {} on {} back to default of {}".format(prop, cont.name, new_default))
+                        resets_count += 1
+                    else:
+                        cont[prop] = bpy.context.scene.GroomLostDefault
+                        self.report({'WARNING'}, "Changing {} on {} to forced value of {} (No default value stored)".format(prop, cont.name, cont[prop]))
+                        resets_count += 1
+            
+            self.report({'INFO'}, "Finished setting defaults back on {}\n.".format(armature.name))
 
         success = True
         return resets_count
