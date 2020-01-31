@@ -26,7 +26,7 @@ class BindArmatureOperator(bpy.types.Operator):
     bl_options = {'REGISTER', 'UNDO'}
 
     def bind_armature(self):
-        print ("Executing armature bind.")
+        self.report({'INFO'}, "Starting armature bind.")
 
         scene = bpy.context.scene
         repose_armature = scene.TargetArmature
@@ -39,32 +39,25 @@ class BindArmatureOperator(bpy.types.Operator):
         repose_armature.hide_viewport=False
         addon_armature.hide_viewport=False
 
-        bpy.ops.object.mode_set(mode = 'POSE')
-
         # Call the specific parent function.
         if(scene.ArmatureType == 'teeth'):
+            self.report({'INFO'}, "Bind target is a Teeth Rig.")
 
             # This process combines armatures before in-armature parenting begins.
             success = self.join_rigs(repose_name = repose_armature.name, addon_name = addon_armature.name)
             if(success == False):
                 self.report({'WARNING'}, "An object was missing, cancelling the process.")
                 return False
-
-            # The 
-            self.report({'WARNING'}, "The thing is called {}".format(repose_armature.name))
             self.parent_teeth(repose_armature.name)
 
         if(scene.ArmatureType == 'crowd_biped'):
-            self.report({'INFO'}, "Starting crowd_biped")
+            self.report({'INFO'}, "Starting crowd_biped attachment.")
             self.parent_crowd(repose_armature.name)
 
             success = self.join_rigs(repose_name = repose_armature.name, addon_name = addon_armature.name)
             if(success == False):
                 self.report({'WARNING'}, "An object was missing, cancelling the process.")
                 return False
-
-
-        
 
         self.report({'INFO'}, "The binding process completed successfully.")
         return True
@@ -77,7 +70,7 @@ class BindArmatureOperator(bpy.types.Operator):
         Takes bones from addon rig and makes them components of the target rig.
         """
         # This def's code based on Mike C.'s.
-        self.report({'INFO'}, 'Binding rigs together.')
+        self.report({'INFO'}, 'Binding armature contents into a single armature.')
         bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action = 'DESELECT')
         self.report({'INFO'}, "Binding {} with {}".format(addon_name, repose_name))
@@ -85,7 +78,7 @@ class BindArmatureOperator(bpy.types.Operator):
         try:
             bpy.context.scene.objects[addon_name].select_set(True)
         except:
-            self.report({'ERROR'}, "{} doesn't seem to be in the scene.\nIs it already binded?".format(addon_name))
+            self.report({'ERROR'}, "{} doesn't seem to be in the scene.  Is it already bound?".format(addon_name))
             return False
 
         try:
@@ -93,15 +86,20 @@ class BindArmatureOperator(bpy.types.Operator):
         except:
             self.report({'ERROR'}, "{} is not found.  Did you select the repose rig?")
             return False
-        bpy.context.view_layer.objects.active=bpy.data.objects[repose_name]
-        bpy.ops.object.join()
-        self.report({'INFO'}, 'Success!')
 
+        self.report({'INFO'}, "")
+        bpy.context.view_layer.objects.active=bpy.data.objects[repose_name]
+
+        bpy.ops.object.join()
+        self.report({'INFO'}, "Armatures successfully joined.")
         return True
 
     
     def match_pose(self):
         # Snap pose position of one armature that has any smililar naming scheme.
+        
+        bpy.ops.object.mode_set(mode = 'POSE')
+
 
         # source and target are captured from the panel.
         source = bpy.context.scene.SourceArmature
@@ -164,6 +162,7 @@ class BindArmatureOperator(bpy.types.Operator):
 
 
     def execute(self, context):
+        self.report({'INFO'}, "Executing {}.".format(self))
         success = self.bind_armature()
         if(success):
             return {'FINISHED'}
