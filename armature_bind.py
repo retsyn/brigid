@@ -52,9 +52,8 @@ class BindArmatureOperator(bpy.types.Operator):
 
         if(scene.ArmatureType == 'crowd_biped'):
             self.report({'INFO'}, "Starting crowd_biped attachment.")
-            self.parent_crowd(repose_armature.name)
+            success = self.parent_crowd()
 
-            success = self.join_rigs(repose_name = repose_armature.name, addon_name = addon_armature.name)
             if(success == False):
                 self.report({'WARNING'}, "An object was missing, cancelling the process.")
                 return False
@@ -98,26 +97,44 @@ class BindArmatureOperator(bpy.types.Operator):
     def match_pose(self):
         # Snap pose position of one armature that has any smililar naming scheme.
         
-        bpy.ops.object.mode_set(mode = 'POSE')
 
+        # Call upon the repose script to disable all the rig contents.
+        bpy.ops.ta.disable_deform_ik()
+        bpy.ops.object.mode_set(mode = 'POSE')
 
         # source and target are captured from the panel.
         source = bpy.context.scene.SourceArmature
         target = bpy.context.scene.TargetArmature
 
-        pose_bone_list = [bone for bone in target.pose.bones if bone.name.partition('.')[0] == 'pos']   
+        self.report({'INFO'}, "Matching POS from {} to {}.".format(source.name, target.name))
+        self.report({'INFO'}, "Pose bone list: {}".format(source.pose.bones))
+        #pose_bone_list = [bone for bone in target.pose.bones]
+        pose_bone_list = [bone for bone in source.pose.bones if bone.name.partition('.')[0] == 'pos']
+        # This is our error, list comprehension is pulling out zero items.
+        self.report({'INFO'}, "Comprehended pose-bone list: {}".format(pose_bone_list))
 
+        # Mouse cursor progress bar
+        wm = bpy.context.window_manager
+        wm.progress_begin(len(pose_bone_list), 0)
+    
         # Mike C's code follows.  It creates temporary copy transforms.
-        for p_bone in pose_bone_list:
+        i = 0
+        for pose_bone in pose_bone_list:
+            i += 1
+            wm.progress_update(i)
             # creates the modifier and sets the armature and bone.
-            mod_cns = p_bone.constraints.new('COPY_TRANSFORMS')
-            mod_cns.target = source
-            mod_cns.subtarget = p_bone.name
-            # print ("Snapping {}:{} to {}:{}".format(source.name, p_bone.name, target.name, p_bone.name))
-            # applies the pose.
+            temp_constraint = pose_bone.constraints.new('COPY_TRANSFORMS')
+            temp_constraint.target = target
+            temp_constraint.subtarget = pose_bone.name
+            self.report({'INFO'}, "Snapping {}:{} to {}:{}".format(source.name, pose_bone.name, target.name, pose_bone.name))
+            #applies the pose.
+
+            pose_bone.bone.select = True
             bpy.ops.pose.visual_transform_apply()
             # Context pedantic:
-            p_bone.constraints.remove(mod_cns)
+            pose_bone.constraints.remove(temp_constraint)
+        
+        wm.progress_end()
     
         print ("Finished repose matching.")
 
@@ -147,13 +164,13 @@ class BindArmatureOperator(bpy.types.Operator):
         return True
 
 
-    def parent_crowd(self, repose_name):
+    def parent_crowd(self):
         """
         Specific parent scheme just for Crowd Rigs
         """
 
-        bpy.ops.object.mode_set(mode = 'EDIT')
-
+        bpy.ops.object.mode_set(mode = 'POSE')
+        self.match_pose()
 
 
     def parent_face(self):
@@ -225,13 +242,13 @@ class BindArmaPropGroup(bpy.types.PropertyGroup):
 
     bpy.types.Scene.TargetArmature = bpy.props.PointerProperty(
         type=bpy.types.Object, 
-        name = "Repose", 
+        name = "Target Rig", 
         description = "Rig Armature"
         )
 
     bpy.types.Scene.SourceArmature = bpy.props.PointerProperty(
         type=bpy.types.Object,
-        name = "Addon",
+        name = "Rig to Snap",
         description = "Rig Armature"
         )
 
