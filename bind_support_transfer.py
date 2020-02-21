@@ -35,22 +35,59 @@ class BindSupportTransferOperator(bpy.types.Operator):
 
         bpy.ops.object.mode_set(mode="EDIT")
         obj = bpy.context.edit_object
-        mesh = obj.data
+        if(obj.type != 'MESH'):
+            self.report({'ERROR'}, "Select a mesh before running this operation.")
+            return False
 
-        self.report({'INFO'}, "Working on mesh {}".format(mesh))
+        self.report({'INFO'}, "Working on {}".format(obj.name))
 
         # Find the attached rig:
+        rig = obj.parent
+        if(rig.type != 'ARMATURE'):
+            self.report({'ERROR'}, "The parent of the geo is not an armature.  Check that your selected geo is rigged correctly.")
+            return false
 
-
+        bpy.ops.object.mode_set(mode="OBJECT")
         for vtxgrp in obj.vertex_groups:
             if(vtxgrp.name.partition('.')[0] == 'sup'):
                 self.report({'INFO'}, "Working vtx group \"{}\"...".format(vtxgrp.name))
-                # Now we find the parent.
-                self.report()
+                # Now find the bone in the rig with the same name...
+                sup_bone = rig.pose.bones[vtxgrp.name]
+                parent_def = sup_bone.parent
+                self.report({'INFO'}, "Parent of {} is {}...".format(sup_bone.name, parent_def.name))
+                self.mix_groups(obj, vtxgrp.name, parent_def.name)
 
+        # Once the bind weights are moved over completely and safely, we can begin to delete sup vtxgrps.
+        # TODO Delete sup vtx groups here.                
 
         self.report({'INFO'}, "Execution finished.")
         return True
+
+
+    def mix_groups(self, ob, vtxgrp_a_str, vtxgrp_b_str):
+        # Get both groups and add them into third
+        if (vtxgrp_a_str in ob.vertex_groups and vtxgrp_b_str in ob.vertex_groups):
+
+            self.report({'INFO'}, "Adding {} to {}.".format(vtxgrp_a_str, vtxgrp_b_str))
+            for id, vert in enumerate(ob.data.vertices):
+                available_groups = [v_group_elem.group for v_group_elem in vert.groups]
+                A = B = 0
+                if ob.vertex_groups[vtxgrp_a_str].index in available_groups:
+                    A = ob.vertex_groups[vtxgrp_a_str].weight(id)
+                if ob.vertex_groups[vtxgrp_b_str].index in available_groups:
+                    B = ob.vertex_groups[vtxgrp_b_str].weight(id)
+
+                # only add to vertex group is weight is > 0
+                sum = A + B
+                if sum > 0:
+                    vtxgrp_b = ob.vertex_groups[vtxgrp_b_str]
+                    vtxgrp_a = ob.vertex_groups[vtxgrp_a_str]
+                    vtxgrp_b.add([id], sum, 'REPLACE')
+            
+            #ob.vertex_groups.remove(vtxgrp_a)
+                    
+        else:
+            self.report({'WARNING'}, "{} and/or {} is not present in the existing vtx groups... skipping it.".format(vtxgrp_a_str, vtxgrp_b_str))
 
 
     def execute(self, context):
@@ -70,7 +107,7 @@ class TOOLS_PT_bind_support_transfer(bpy.types.Panel):
     bl_idname = "TOOLS_PT_bind_support_transfer"
     bl_space_type = 'VIEW_3D'
     bl_region_type = 'UI'
-    bl_category = 'Repose'
+    bl_category = 'Repose Rig'
 
 
     def draw(self, context):
@@ -92,9 +129,12 @@ classes = [BindSupportTransferOperator, TOOLS_PT_bind_support_transfer, BindXfer
 
 
 # Utility
-def get_children(ob):
-    return [ob_child for ob_child in Object.Get() if ob_child.parent == ob]
-
+def get_children(object): 
+    children = [] 
+    for ob in bpy.data.objects: 
+        if ob.parent == object: 
+            children.append(ob) 
+    return children 
 
 # Add-on standard
 def register():
